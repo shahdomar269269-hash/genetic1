@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+
+<title>GenePop BioLab</title>
+<link rel="manifest" href="manifest.json">
+
+<style>
+/* ===== LAB THEME ===== */
+body{
+margin:0;
+font-family:Segoe UI,Arial;
+background:linear-gradient(180deg,#0a192f,#06121a);
+color:#e6f7ff;
+text-align:center;
+}
+
+.header{
+background:#051018;
+padding:12px;
+font-weight:bold;
+box-shadow:0 2px 8px black;
+}
+
+.screen{display:none;padding:18px}
+.active{display:block}
+
+h2{color:#00e5a8}
+
+button{
+width:95%;
+padding:14px;
+margin:6px;
+border-radius:10px;
+border:1px solid #00e5a8;
+background:#102c3a;
+color:white;
+font-size:16px;
+}
+
+button:hover{
+background:#00e5a8;
+color:black;
+}
+
+.correct{background:#0f5132 !important}
+.wrong{background:#6b1c1c !important}
+
+.lang{
+position:fixed;
+top:10px;
+right:10px;
+background:#00e5a8;
+color:black;
+}
+
+.info{
+margin-top:12px;
+font-size:14px;
+color:#9ee;
+}
+</style>
+</head>
+
+<body>
+
+<button class="lang" onclick="toggleLang()">🌐</button>
+
+<div class="header">
+👩‍🔬 genepop |
+⭐ <span id="score">0</span> |
+❤️ <span id="lives">3</span> |
+🏆 <span id="high">0</span>
+</div>
+
+<!-- HOME -->
+<div id="home" class="screen active">
+<h2 id="title">🧬 مختبر الجينات</h2>
+
+<button onclick="start('dna')">DNA Lab</button>
+<button onclick="start('immune')">Immunology</button>
+<button onclick="start('crispr')">CRISPR</button>
+<button onclick="start('punnett')">Punnett Square</button>
+<button onclick="facts()">📚 معلومات علمية</button>
+</div>
+
+<!-- GAME -->
+<div id="game" class="screen"></div>
+
+<script>
+////////////////////
+// SERVICE WORKER
+////////////////////
+if("serviceWorker" in navigator){
+navigator.serviceWorker.register("service-worker.js");
+}
+
+////////////////////
+// SOUND
+////////////////////
+const ctx=new (window.AudioContext||window.webkitAudioContext)();
+function beep(f){
+let o=ctx.createOscillator();
+o.frequency.value=f;
+o.connect(ctx.destination);
+o.start();
+o.stop(ctx.currentTime+.08);
+}
+
+////////////////////
+// SCORE
+////////////////////
+let score=0,lives=3;
+let high=localStorage.getItem("genepop_high")||0;
+
+const scoreEl=document.getElementById("score");
+const livesEl=document.getElementById("lives");
+const highEl=document.getElementById("high");
+
+highEl.innerText=high;
+
+function update(){
+scoreEl.innerText=score;
+livesEl.innerText=lives;
+}
+
+function saveHigh(){
+if(score>high){
+high=score;
+localStorage.setItem("genepop_high",score);
+highEl.innerText=score;
+}
+}
+
+////////////////////
+// LANGUAGE
+////////////////////
+let lang="ar";
+
+function toggleLang(){
+lang = lang=="ar" ? "en" : "ar";
+title.innerText = lang=="ar" ? "🧬 مختبر الجينات" : "🧬 Gene Lab";
+}
+
+////////////////////
+// QUESTION BANK 150+
+////////////////////
+const bank=[];
+for(let i=0;i<40;i++){
+bank.push(
+["A pairs with ؟",["T","C","G"],0,"A pairs with T in DNA"],
+["aa genotype means ؟",["Recessive","Dominant","Hybrid"],0,"aa is recessive"],
+["CRISPR edits ؟",["DNA","Protein","Sugar"],0,"CRISPR cuts DNA"],
+["Killer immune cell ؟",["T cell","Neuron","Platelet"],0,"Cytotoxic T cell kills pathogens"]
+);
+}
+
+////////////////////
+// ENGINE
+////////////////////
+let current=[],i=0;
+
+function show(id){
+document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+}
+
+function start(){
+score=0; lives=3; update();
+current=[...bank].sort(()=>Math.random()-.5).slice(0,12);
+i=0;
+show("game");
+next();
+}
+
+function next(){
+if(i>=current.length){
+saveHigh();
+game.innerHTML="<h2>🎉 Level Complete</h2><button onclick='home()'>Home</button>";
+return;
+}
+
+let q=current[i];
+let html="<h3>"+q[0]+"</h3>";
+
+q[1].forEach((a,idx)=>{
+html+=`<button onclick="ans(this,${idx},${q[2]},'${q[3]}')">${a}</button>`;
+});
+
+html+="<div id='info' class='info'></div>";
+
+game.innerHTML=html;
+}
+
+function ans(btn,choice,correct,info){
+document.querySelectorAll("#game button").forEach(b=>b.disabled=true);
+
+if(choice==correct){
+btn.classList.add("correct");
+score+=10;
+beep(900);
+}else{
+btn.classList.add("wrong");
+beep(200);
+lives--;
+}
+
+document.getElementById("info").innerText=info;
+update();
+
+if(lives<=0){
+saveHigh();
+setTimeout(()=>game.innerHTML="<h2>💀 Game Over</h2><button onclick='home()'>Home</button>",900);
+return;
+}
+
+setTimeout(()=>{
+i++;
+next();
+},1000);
+}
+
+function home(){show("home");}
+
+////////////////////
+// FACTS
+////////////////////
+const factsArr=[
+"DNA length in your body could reach the sun ☀️",
+"CRISPR works like molecular scissors ✂️",
+"Vaccines train immune memory",
+"Genes code for proteins"
+];
+
+function facts(){
+show("game");
+let f=factsArr[Math.floor(Math.random()*factsArr.length)];
+game.innerHTML="<h3>"+f+"</h3><button onclick='facts()'>Next</button><button onclick='home()'>Home</button>";
+}
+</script>
+</body>
+</html>
